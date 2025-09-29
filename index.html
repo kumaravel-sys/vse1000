@@ -1,0 +1,669 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>School ShareMarket — Demat Simulator</title>
+
+  <!-- TradingView (interactive candlestick widget) -->
+  <script src="https://s3.tradingview.com/tv.js"></script>
+  <style>
+    :root{
+      --bg:#07111b; --card:#0a1620; --accent:#08c36a; --muted:#98a5b3; --text:#e8f1f5;
+    }
+    *{box-sizing:border-box;font-family:Inter,system-ui,Segoe UI,Roboto,Arial}
+    body{margin:0;background:var(--bg);color:var(--text)}
+    .wrap{max-width:1200px;margin:16px auto;padding:12px}
+    header{display:flex;justify-content:space-between;align-items:center;gap:12px}
+    h1{font-size:20px;margin:0}
+    .muted{color:var(--muted);font-size:13px}
+    .row{display:flex;gap:12px}
+    .col{flex:1}
+    .card{background:var(--card);padding:12px;border-radius:10px;border:1px solid rgba(255,255,255,0.03)}
+    input,select,button{padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);background:transparent;color:var(--text)}
+    button{cursor:pointer}
+    .center{text-align:center}
+    .hidden{display:none}
+    /* layout */
+    .app{display:grid;grid-template-columns:300px 1fr;gap:12px;margin-top:12px}
+    .sidebar{height:calc(100vh - 120px);overflow:auto}
+    .stock-item{padding:10px;border-radius:8px;margin-bottom:8px;cursor:pointer;border:1px solid rgba(255,255,255,0.02)}
+    .stock-item:hover{background:rgba(255,255,255,0.02)}
+    .selected{background:linear-gradient(90deg, rgba(8,195,106,0.06), transparent);border-color:rgba(8,195,106,0.18)}
+    .small{font-size:13px}
+    .controls{display:flex;gap:8px;align-items:center}
+    .trade-controls{display:flex;gap:8px;align-items:center;margin-top:8px}
+    table{width:100%;border-collapse:collapse;margin-top:8px}
+    th,td{padding:8px;border-bottom:1px solid rgba(255,255,255,0.03);text-align:left}
+    .btn{background:var(--accent);color:#04211a;border:none;padding:8px 10px;border-radius:8px}
+    .btn-danger{background:#ff6b6b;color:#280000}
+    .leader{display:flex;gap:8px;flex-direction:column}
+    .settings{display:flex;gap:8px;flex-direction:column;margin-top:8px}
+    @media(max-width:980px){ .app{grid-template-columns:1fr} }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div>
+        <h1>School ShareMarket — Demat Simulator</h1>
+        <div class="muted">Demo: Indian market • Trading simulation • Finnhub + TradingView</div>
+      </div>
+
+      <div class="controls">
+        <div class="muted">Background</div>
+        <input id="bgColor" type="color" value="#07111b" />
+        <div style="width:14px"></div>
+        <div id="userControls" class="muted"></div>
+      </div>
+    </header>
+
+    <!-- LOGIN / GATE -->
+    <div id="loginCard" class="card" style="margin-top:12px">
+      <div id="gateArea">
+        <div class="center">
+          <h2>Enter Site Password</h2>
+          <input id="sitePass" placeholder="Site password" />
+          <div style="margin-top:10px"><button id="siteEnter" class="btn">Enter</button></div>
+          <div class="muted small" style="margin-top:10px">Only for school students & teachers</div>
+        </div>
+      </div>
+
+      <div id="authArea" class="hidden" style="margin-top:12px">
+        <h3 class="center">Demat - Register / Login</h3>
+        <label>Email (students use any email)</label>
+        <input id="email" placeholder="student1@school.com" />
+        <label>Password</label>
+        <input id="pass" placeholder="password (min 4 chars)" />
+        <div style="margin-top:8px;display:flex;gap:8px;justify-content:center">
+          <button id="btnRegister" class="btn">Register</button>
+          <button id="btnLogin" class="btn">Login</button>
+        </div>
+        <div id="loginMsg" class="muted small center" style="margin-top:8px"></div>
+      </div>
+    </div>
+
+    <!-- APP -->
+    <div id="appArea" class="app hidden" aria-hidden="true">
+
+      <!-- SIDEBAR -->
+      <aside class="sidebar">
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div>
+              <div class="small muted">User</div>
+              <div id="uiName">—</div>
+            </div>
+            <div>
+              <div class="small muted">Total Wealth</div>
+              <div id="uiWealth">₹0</div>
+            </div>
+          </div>
+
+          <div style="margin-top:12px">
+            <div class="small muted">Stocks (click to open)</div>
+            <div id="stockList" style="margin-top:8px"></div>
+          </div>
+
+          <div style="margin-top:12px" class="small muted">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+              <div>Admin</div>
+              <button id="openAdmin" class="btn">Admin</button>
+            </div>
+
+            <div class="small muted" style="margin-top:8px">Leaderboard</div>
+            <div id="leaderboard" style="margin-top:6px"></div>
+          </div>
+
+          <div style="margin-top:12px">
+            <div class="small muted">Settings</div>
+            <div class="settings">
+              <label class="small muted">Starting balance (admin)</label>
+              <input id="startingBalance" />
+              <button id="saveSettings" class="btn">Save</button>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- MAIN -->
+      <main class="main">
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div>
+              <div id="selName" style="font-weight:700">Select a stock</div>
+              <div id="selSym" class="small muted">---</div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center">
+              <select id="chartRange">
+                <option value="1M">1M</option>
+                <option value="3M">3M</option>
+                <option value="6M">6M</option>
+                <option value="1Y">1Y</option>
+                <option value="MAX">MAX</option>
+              </select>
+              <button id="logoutBtn" class="btn">Logout</button>
+            </div>
+          </div>
+
+          <div id="chartBox" style="margin-top:12px">
+            <!-- TradingView placeholder -->
+            <div id="tv_chart_container" style="height:480px"></div>
+          </div>
+
+          <div style="display:flex;gap:12px;margin-top:12px">
+            <div class="col card">
+              <div class="small muted">Live Price</div>
+              <div id="livePrice" style="font-weight:700;font-size:20px">—</div>
+              <div id="priceChange" class="small muted">—</div>
+
+              <div style="margin-top:10px" class="small muted">Quick trade</div>
+              <div class="trade-controls">
+                <input id="qty" type="number" placeholder="Qty" style="width:100px" />
+                <button id="buyBtn" class="btn">Buy</button>
+                <button id="sellBtn" class="btn btn-danger">Sell</button>
+              </div>
+              <div id="tradeMsg" class="small muted" style="margin-top:8px"></div>
+            </div>
+
+            <div style="width:360px" class="card">
+              <div class="small muted">Company profile & fundamentals</div>
+              <div id="companyInfo" style="margin-top:8px">—</div>
+
+              <div style="margin-top:12px" class="small muted">Your portfolio</div>
+              <div id="portfolioArea" style="margin-top:8px">No holdings</div>
+
+              <div style="margin-top:12px" class="small muted">Recent transactions</div>
+              <div id="txArea" style="margin-top:8px">—</div>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+
+  </div>
+
+<script>
+/* ===================== CONFIG ===================== */
+const SITE_PASSWORD = "vse2k25";
+const ADMIN_EMAIL = "admin62vse.com";
+const ADMIN_PASS = "adminvse2k25";
+const FINNHUB_KEY = "d3bm7n1r01qqg7bv706gd3bm7n1r01qqg7bv7070"; // your key
+const DEFAULT_START_BALANCE = 100000;
+
+/* Default stock list: keep names as you provided. Change names as admin later. 
+   We use two forms of symbol:
+     - finnhub uses "RELIANCE.NS"
+     - TradingView expects "NSE:RELIANCE" (we map automatically)
+*/
+const DEFAULT_STOCKS = [
+  { symbolFH: "RELIANCE.NS", tv: "NSE:RELIANCE", name: "organising department" },
+  { symbolFH: "TCS.NS",      tv: "NSE:TCS",      name: "models department" },
+  { symbolFH: "INFY.NS",     tv: "NSE:INFY",     name: "tech department" },
+  { symbolFH: "HDFCBANK.NS", tv: "NSE:HDFCBANK", name: "finance department" },
+  { symbolFH: "ICICIBANK.NS",tv: "NSE:ICICIBANK",name: "games department" },
+  { symbolFH: "SBIN.NS",     tv: "NSE:SBIN",     name: "foodstalls department" },
+  { symbolFH: "HINDUNILVR.NS",tv:"NSE:HINDUNILVR",name:"stalls department" },
+  { symbolFH: "BHARTIARTL.NS",tv:"NSE:BHARTIARTL",name:"seminar department" },
+  { symbolFH: "LT.NS",       tv: "NSE:LT",       name: "photography department" }
+];
+/* ================================================= */
+
+/* ============ Storage helpers ============ */
+function loadState(){
+  const s = localStorage.getItem('sm_state');
+  if(!s){
+    const initial = {
+      startBalance: DEFAULT_START_BALANCE,
+      users: {}, // email -> {password, balance, holdings:{symbol:qty}, tx:[]}
+      stocks: DEFAULT_STOCKS
+    };
+    localStorage.setItem('sm_state', JSON.stringify(initial));
+    return initial;
+  }
+  return JSON.parse(s);
+}
+function saveState(state){ localStorage.setItem('sm_state', JSON.stringify(state)); }
+
+let STATE = loadState();
+
+/* ---------- UI refs ---------- */
+const $ = (q)=>document.querySelector(q);
+const $$ = (q)=>Array.from(document.querySelectorAll(q));
+
+/* ---------- runtime vars ---------- */
+let currentUser = null; // {email, admin}
+let selectedStock = null;
+let tvWidget = null;
+let autoRefreshInterval = null;
+
+/* ============ Gate & Auth ============ */
+$('#siteEnter').addEventListener('click', ()=>{
+  const v = $('#sitePass').value.trim();
+  if(v === SITE_PASSWORD){
+    $('#gateArea').classList.add('hidden');
+    $('#authArea').classList.remove('hidden');
+    $('#loginMsg').textContent = '';
+  } else {
+    $('#loginMsg').textContent = 'Wrong site password.';
+  }
+});
+
+$('#btnRegister').addEventListener('click', ()=>{
+  const email = $('#email').value.trim().toLowerCase();
+  const pass = $('#pass').value;
+  if(!email || !pass || pass.length < 4){ $('#loginMsg').textContent='Enter valid email & password (min 4 chars)'; return; }
+  const users = STATE.users;
+  if(users[email]){ $('#loginMsg').textContent='User exists — use login'; return; }
+  users[email] = { password: pass, balance: STATE.startBalance, holdings: {}, tx: [], created: Date.now() };
+  saveState(STATE);
+  $('#loginMsg').textContent = 'Registered — now login';
+});
+
+$('#btnLogin').addEventListener('click', ()=>{
+  const email = $('#email').value.trim().toLowerCase();
+  const pass = $('#pass').value;
+  if(email === ADMIN_EMAIL && pass === ADMIN_PASS){ // admin
+    currentUser = { email: ADMIN_EMAIL, admin:true };
+    openApp();
+    return;
+  }
+  const user = STATE.users[email];
+  if(!user){ $('#loginMsg').textContent = 'No such user — register first'; return; }
+  if(user.password !== pass){ $('#loginMsg').textContent = 'Wrong credentials'; return; }
+  currentUser = { email, admin:false };
+  openApp();
+});
+
+/* ============ App open/close ============ */
+function openApp(){
+  $('#authArea').classList.add('hidden');
+  $('#loginCard').classList.add('hidden');
+  $('#appArea').classList.remove('hidden');
+  $('#appArea').setAttribute('aria-hidden','false');
+  updateUserControls();
+  renderStockList();
+  renderLeaderboard();
+  if(currentUser.admin) {
+    $('#openAdmin').style.display = 'inline-block';
+    $('#openAdmin').addEventListener('click', openAdmin);
+    $('#startingBalance').value = STATE.startBalance;
+    $('#saveSettings').addEventListener('click',saveSettings);
+  } else {
+    $('#openAdmin').style.display = 'none';
+  }
+  startAutoRefresh();
+}
+
+/* logout */
+$('#logoutBtn').addEventListener('click', ()=>logout());
+function logout(){
+  // persist users
+  saveState(STATE);
+  currentUser = null;
+  selectedStock = null;
+  if(tvWidget){ try{ tvWidget.remove(); } catch(e){} tvWidget=null; $('#tv_chart_container').innerHTML=''; }
+  $('#appArea').classList.add('hidden');
+  $('#loginCard').classList.remove('hidden');
+  $('#authArea').classList.remove('hidden');
+  stopAutoRefresh();
+}
+
+/* update top-right user control */
+function updateUserControls(){
+  if(!currentUser) return;
+  const userArea = $('#userControls');
+  if(currentUser.admin) userArea.textContent = 'Admin';
+  else{
+    const u = STATE.users[currentUser.email];
+    const wealth = computeWealth(u);
+    userArea.innerHTML = `${currentUser.email} • ₹${formatNumber(wealth)}`;
+    $('#uiName').textContent = currentUser.email;
+    $('#uiWealth').textContent = '₹' + formatNumber(wealth);
+  }
+}
+
+/* ============ Render stock list ============ */
+function renderStockList(){
+  const list = $('#stockList'); list.innerHTML = '';
+  STATE.stocks.forEach(s=>{
+    const el = document.createElement('div');
+    el.className = 'stock-item';
+    el.dataset.sym = s.symbolFH;
+    el.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center">
+      <div><strong>${s.name}</strong><div class="small muted">${s.symbolFH}</div></div>
+      <div class="small muted" data-price>—</div>
+    </div>`;
+    el.addEventListener('click', ()=>selectStock(s.symbolFH));
+    list.appendChild(el);
+    // initial small price
+    fetchQuote(s.symbolFH).then(q=>{
+      const p = q && q.c ? '₹'+q.c.toFixed(2):'—';
+      el.querySelector('[data-price]').textContent = p;
+    });
+  });
+}
+
+/* select a stock */
+async function selectStock(symbolFH){
+  selectedStock = STATE.stocks.find(s => s.symbolFH === symbolFH);
+  // highlight
+  $$('.stock-item').forEach(it=> it.classList.toggle('selected', it.dataset.sym === symbolFH));
+  $('#selName').textContent = selectedStock.name;
+  $('#selSym').textContent = selectedStock.symbolFH;
+  // load tradingview chart
+  loadTradingView(selectedStock.tv || convertToTV(selectedStock.symbolFH));
+  // load live quote
+  const q = await fetchQuote(selectedStock.symbolFH);
+  if(q && q.c!==undefined){
+    $('#livePrice').textContent = '₹' + q.c.toFixed(2);
+    $('#priceChange').textContent = `${q.d>=0? '▲':'▼'} ${q.d.toFixed(2)} (${q.dp.toFixed(2)}%)`;
+    $('#priceChange').style.color = q.d>=0 ? '#3ee27a' : '#ff7b7b';
+  } else {
+    $('#livePrice').textContent = '—'; $('#priceChange').textContent='—';
+  }
+  // fundamentals
+  loadFundamentals(selectedStock.symbolFH);
+  // portfolio & tx
+  renderPortfolio();
+  renderTx();
+}
+
+/* convert Finnhub symbol (RELIANCE.NS) to TradingView form (NSE:RELIANCE) */
+function convertToTV(fh){
+  if(!fh) return fh;
+  const t = fh.replace('.NS','');
+  return 'NSE:' + t;
+}
+
+/* load tradingview chart (interactive candlestick) */
+function loadTradingView(tvSymbol){
+  // TradingView widget requires a new element each load
+  document.getElementById('tv_chart_container').innerHTML = '';
+  try {
+    tvWidget = new TradingView.widget({
+      "container_id": "tv_chart_container",
+      "width": "100%",
+      "height": 480,
+      "symbol": tvSymbol,
+      "interval": "D",
+      "timezone": "Asia/Kolkata",
+      "theme": "dark",
+      "style": "1",
+      "locale": "en",
+      "toolbar_bg": "#15171b",
+      "enable_publishing": false,
+      "allow_symbol_change": false
+    });
+  } catch(e){
+    console.warn('TradingView error',e);
+    document.getElementById('tv_chart_container').innerText = 'Chart failed to load.';
+  }
+}
+
+/* ============ Finnhub helpers ============ */
+async function fetchQuote(symbolFH){
+  try{
+    const r = await fetch(`https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(symbolFH)}&token=${FINNHUB_KEY}`);
+    return await r.json();
+  }catch(e){ console.error(e); return null; }
+}
+async function loadFundamentals(symbolFH){
+  $('#companyInfo').textContent = 'Loading...';
+  try{
+    const pR = await fetch(`https://finnhub.io/api/v1/stock/profile2?symbol=${encodeURIComponent(symbolFH)}&token=${FINNHUB_KEY}`);
+    const p = await pR.json();
+    const mR = await fetch(`https://finnhub.io/api/v1/stock/metric?symbol=${encodeURIComponent(symbolFH)}&metric=all&token=${FINNHUB_KEY}`);
+    const m = await mR.json();
+    const html = `<div><strong>${p.name || selectedStock.symbolFH}</strong> <div class="small muted">${p.finnhubIndustry || ''}</div></div>
+      <div style="margin-top:8px">Market Cap: ${m.metric?.marketCapitalization ?? 'N/A'}</div>
+      <div>PE (ttm): ${m.metric?.peNormalizedAnnual ?? 'N/A'}</div>
+      <div>EPS: ${m.metric?.epsNormalizedAnnual ?? 'N/A'}</div>
+      <div style="margin-top:6px">${p.weburl ? `<a href="${p.weburl}" target="_blank">Company site</a>` : ''}</div>`;
+    $('#companyInfo').innerHTML = html;
+  }catch(e){ $('#companyInfo').textContent = 'Company info not available'; }
+}
+
+/* ============ Trading (buy/sell) ============ */
+$('#buyBtn').addEventListener('click', ()=>openTradeModal('buy'));
+$('#sellBtn').addEventListener('click', ()=>openTradeModal('sell'));
+$('#qty').value = 1;
+
+function openTradeModal(type){
+  if(!currentUser || currentUser.admin){ alert('Register and login as a student to trade'); return; }
+  if(!selectedStock){ alert('Select a stock'); return; }
+  const qty = Number($('#qty').value) || 1;
+  confirmTrade(type, qty);
+}
+
+async function confirmTrade(type, qty){
+  // get latest price
+  const q = await fetchQuote(selectedStock.symbolFH);
+  const price = q && q.c ? q.c : null;
+  if(!price){ $('#tradeMsg').textContent = 'Price unavailable'; return; }
+  const user = STATE.users[currentUser.email];
+  if(type === 'buy'){
+    const cost = price * qty;
+    if(user.balance < cost){ $('#tradeMsg').textContent='Insufficient balance'; return; }
+    user.balance -= cost;
+    user.holdings[selectedStock.symbolFH] = (user.holdings[selectedStock.symbolFH] || 0) + qty;
+    user.tx.unshift({type:'buy', symbol:selectedStock.symbolFH, qty, price, time:Date.now()});
+    saveState(STATE);
+    $('#tradeMsg').textContent = `Bought ${qty} @ ₹${price.toFixed(2)}`;
+  } else {
+    const owned = user.holdings[selectedStock.symbolFH] || 0;
+    if(owned < qty){ $('#tradeMsg').textContent = 'Not enough shares'; return; }
+    user.holdings[selectedStock.symbolFH] = owned - qty;
+    user.balance += price * qty;
+    user.tx.unshift({type:'sell', symbol:selectedStock.symbolFH, qty, price, time:Date.now()});
+    saveState(STATE);
+    $('#tradeMsg').textContent = `Sold ${qty} @ ₹${price.toFixed(2)}`;
+  }
+  renderPortfolio();
+  updateUserControls();
+  renderLeaderboard();
+  setTimeout(()=>$('#tradeMsg').textContent = '', 3000);
+}
+
+/* ============ Portfolio & transactions UI ============ */
+async function renderPortfolio(){
+  if(!currentUser || currentUser.admin) return;
+  const user = STATE.users[currentUser.email];
+  // holdings table
+  let html = '';
+  const holdings = user.holdings || {};
+  let totalValue = 0;
+  // fetch current prices for each holding
+  for(const sym of Object.keys(holdings)){
+    const qty = holdings[sym];
+    if(qty <= 0) continue;
+    const q = await fetchQuote(sym);
+    const price = q && q.c ? q.c : 0;
+    const val = price * qty;
+    totalValue += val;
+    const name = (STATE.stocks.find(s=>s.symbolFH===sym)||{}).name || sym;
+    html += `<div style="padding:6px 0"><strong>${name}</strong> (${sym}) — ${qty} shares • ₹${price.toFixed(2)} each → ₹${val.toFixed(2)}</div>`;
+  }
+  const cash = user.balance || 0;
+  const wealth = cash + totalValue;
+  $('#portfolioArea').innerHTML = html || '<div class="muted small">No holdings</div>';
+  $('#uiWealth').textContent = '₹' + formatNumber(wealth);
+  $('#uiName').textContent = currentUser.email;
+  // tx
+  const txHtml = (user.tx||[]).slice(0,10).map(t=>`<div class="small muted">${new Date(t.time).toLocaleString()} — ${t.type.toUpperCase()} ${t.qty} ${t.symbol} @ ₹${t.price.toFixed(2)}</div>`).join('');
+  $('#txArea').innerHTML = txHtml || '<div class="muted small">No transactions</div>';
+}
+
+/* compute wealth quick (without awaiting quotes) — estimates or 0 if not found */
+function computeWealth(user){
+  let w = user.balance || 0;
+  for(const s in user.holdings){
+    // we will try cached price in localStorage if exists
+    const cache = priceCacheGet(s);
+    if(cache) w += cache * (user.holdings[s]||0);
+  }
+  return Math.round(w);
+}
+
+/* ============ Leaderboard ============ */
+async function renderLeaderboard(){
+  // compute wealth for each student (we fetch latest price for holdings to be accurate)
+  const users = STATE.users;
+  const entries = [];
+  for(const email in users){
+    const u = users[email];
+    let total = u.balance || 0;
+    for(const sym in u.holdings){
+      const qty = u.holdings[sym] || 0;
+      if(qty>0){
+        const q = await fetchQuote(sym);
+        const price = q && q.c ? q.c : priceCacheGet(sym) || 0;
+        total += price*qty;
+        priceCacheSet(sym, price);
+      }
+    }
+    entries.push({ email, total });
+  }
+  entries.sort((a,b)=>b.total - a.total);
+  const out = entries.slice(0,5).map((e,i)=>`<div>${i+1}. ${e.email} — ₹${formatNumber(Math.round(e.total))}</div>`).join('');
+  $('#leaderboard').innerHTML = out || '<div class="muted small">No users yet</div>';
+}
+
+/* ============ Admin ============ */
+function openAdmin(){
+  // open modal-like admin area (we'll reuse alert/prompt for simplicity)
+  const cmd = prompt("Admin panel:\n1:view users\n2:reset user\n3:edit stock names\n4:export csv\nEnter option number");
+  if(!cmd) return;
+  if(cmd === '1'){
+    let txt = '';
+    for(const e in STATE.users){
+      const u = STATE.users[e];
+      txt += `${e} — Balance: ₹${u.balance} — Holdings: ${JSON.stringify(u.holdings)}\n`;
+    }
+    alert(txt || 'No users');
+  } else if(cmd === '2'){
+    const email = prompt('Enter user email to reset (complete reset):');
+    if(email && STATE.users[email]){
+      const confirmReset = confirm(`Reset ${email}? This will wipe holdings and balance to starting balance.`);
+      if(confirmReset){
+        STATE.users[email] = { password: STATE.users[email].password, balance: STATE.startBalance, holdings:{}, tx:[], created: Date.now() };
+        saveState(STATE);
+        alert('Reset done');
+      }
+    } else alert('User not found');
+  } else if(cmd === '3'){
+    const idx = prompt('Enter stock number to edit (1-'+STATE.stocks.length+'):\n' + STATE.stocks.map((s,i)=>`${i+1}. ${s.name} (${s.symbolFH})`).join('\n'));
+    const i = parseInt(idx) - 1;
+    if(i>=0 && i<STATE.stocks.length){
+      const newname = prompt('Enter new display name for ' + STATE.stocks[i].symbolFH, STATE.stocks[i].name);
+      if(newname){ STATE.stocks[i].name = newname; saveState(STATE); renderStockList(); alert('Saved'); }
+    }
+  } else if(cmd === '4'){
+    // export CSV of users+wealth
+    let csv = 'email,balance,holdings\n';
+    for(const e in STATE.users){
+      csv += `${e},${STATE.users[e].balance},"${JSON.stringify(STATE.users[e].holdings)}"\n`;
+    }
+    const blob = new Blob([csv], {type:'text/csv'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = 'users.csv'; a.click(); URL.revokeObjectURL(url);
+  } else alert('Unknown option');
+}
+
+/* save settings */
+function saveSettings(){
+  const v = Number($('#startingBalance').value) || DEFAULT_START_BALANCE;
+  STATE.startBalance = v;
+  saveState(STATE);
+  alert('Starting balance saved: ₹' + v);
+}
+
+/* ============ Utility: price cache (small) ============ */
+function priceCacheSet(sym, price){
+  const now = Date.now();
+  const cache = JSON.parse(localStorage.getItem('sm_pricecache')||'{}');
+  cache[sym] = { price, ts: now };
+  localStorage.setItem('sm_pricecache', JSON.stringify(cache));
+}
+function priceCacheGet(sym){
+  const cache = JSON.parse(localStorage.getItem('sm_pricecache')||'{}');
+  const entry = cache[sym];
+  if(!entry) return null;
+  // valid for 60 seconds
+  if(Date.now() - entry.ts > 60_000) return null;
+  return entry.price;
+}
+
+/* ============ Auto refresh ============ */
+function startAutoRefresh(){
+  stopAutoRefresh();
+  autoRefreshInterval = setInterval(async ()=>{
+    // update small prices
+    for(const s of STATE.stocks){
+      const q = await fetchQuote(s.symbolFH);
+      if(q && q.c) priceCacheSet(s.symbolFH, q.c);
+    }
+    // if logged-in student refresh portfolio
+    if(currentUser && !currentUser.admin) {
+      renderPortfolio();
+      renderLeaderboard();
+      updateUserControls();
+    }
+    // update sidebar small prices
+    $$('.stock-item').forEach(async el=>{
+      const sym = el.dataset.sym;
+      const q = await fetchQuote(sym);
+      const p = q && q.c ? '₹'+q.c.toFixed(2) : '—';
+      el.querySelector('[data-price]').textContent = p;
+    });
+  }, 30_000);
+}
+function stopAutoRefresh(){ if(autoRefreshInterval) clearInterval(autoRefreshInterval); autoRefreshInterval=null; }
+
+/* ============ Transactions render ============ */
+function renderTx(){
+  if(!currentUser || currentUser.admin) return;
+  const txs = STATE.users[currentUser.email].tx || [];
+  $('#txArea').innerHTML = txs.slice(0,10).map(t=>`${new Date(t.time).toLocaleString()} — ${t.type.toUpperCase()} ${t.qty} ${t.symbol} @ ₹${t.price.toFixed(2)}`).join('<br>') || '<div class="muted small">No transactions</div>';
+}
+
+/* ============ small helpers ============ */
+function formatNumber(n){
+  return n.toLocaleString('en-IN', {maximumFractionDigits:0});
+}
+
+/* initial load: ensure admin placeholder in users (optional) */
+(function ensureState(){
+  // ensure stocks present
+  if(!STATE.stocks || !STATE.stocks.length){ STATE.stocks = DEFAULT_STOCKS; saveState(STATE); }
+  // ensure some structure
+  if(!STATE.users) STATE.users = {};
+  if(!STATE.startBalance) STATE.startBalance = DEFAULT_START_BALANCE;
+  saveState(STATE);
+})();
+
+/* ============ UI bind background color ============ */
+$('#bgColor').addEventListener('input', (e)=> document.body.style.background = e.target.value);
+
+/* ============ compute portfolio value and update UI on login open ============ */
+/* render leaderboard when user logs in: handled in openApp */
+
+/* Make sure portfolio renders when clicking stocks */
+document.addEventListener('click', function(e){
+  // if clicking outside, no-op
+});
+
+/* helper to render portfolio periodically if logged in */
+setInterval(()=>{
+  if(currentUser && !currentUser.admin) {
+    renderPortfolio(); renderTx(); renderLeaderboard(); updateUserControls();
+  }
+}, 30_000);
+
+/* Expose certain helpers for debugging if needed */
+window._STATE = STATE;
+window._saveState = ()=> saveState(STATE);
+
+</script>
+</body>
+</html>
